@@ -5,30 +5,34 @@ OPT       = -Og
 BUILD_DIR = build
 
 # ==== Sources ====
-C_SOURCES = \
-  src/main.c \
-  src/stm32f4xx_it.c \
-  src/stm32f4xx_hal_msp.c \
-  src/system_stm32f4xx.c \
-  syscalls.c \
-  sysmem.c
-  
+# C_SOURCES = \
+#   src/main.c \
+#   src/stm32f4xx_it.c \
+#   src/stm32f4xx_hal_msp.c \
+#   src/system_stm32f4xx.c \
+#   syscalls.c \
+#   sysmem.c
+
+# recursive wildcard function to get all .c files in src/ and its subdirectories
+C_SOURCES := $(wildcard src/*.c src/*/*.c)
+
 # HAL sources (kullandıklarına göre genişlet)
-HAL_SOURCES = \
-  Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal.c \
-  Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_cortex.c \
-  Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rcc.c \
-  Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rcc_ex.c \
-  Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_gpio.c \
-  Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_dma.c \
-  Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_uart.c \
-  Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_flash.c \
-  Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_flash_ex.c \
-  Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_pwr.c
+# HAL_SOURCES = \
+#   Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal.c \
+#   Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_cortex.c \
+#   Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rcc.c \
+#   Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rcc_ex.c \
+#   Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_gpio.c \
+#   Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_dma.c \
+#   Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_uart.c \
+#   Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_flash.c \
+#   Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_flash_ex.c \
+#   Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_pwr.c
+
+HAL_SOURCES := $(wildcard Drivers/STM32F4xx_HAL_Driver/Src/*.c \
+                   Drivers/STM32F4xx_HAL_Driver/Src/*/*.c)
 
 C_SOURCES += $(HAL_SOURCES)
-
-
 
 
 # GCC sürümü startup dosyası (gerekirse yolunu düzelt)
@@ -127,8 +131,15 @@ clean:
 -include $(wildcard $(BUILD_DIR)/*.d)
 
 # ==== Extras ====
+# flash: $(BUILD_DIR)/$(TARGET).elf
+# 	openocd -f interface/stlink.cfg -f target/stm32f4x.cfg -c "program $< verify reset exit"
+OPENOCD ?= openocd
+OPENOCD_SCRIPTS ?= /opt/homebrew/share/openocd/scripts
+
 flash: $(BUILD_DIR)/$(TARGET).elf
-	openocd -f interface/stlink.cfg -f target/stm32f4x.cfg -c "program $< verify reset exit"
+	$(OPENOCD) -s $(OPENOCD_SCRIPTS) \
+	  -f interface/stlink.cfg -f target/stm32f4x.cfg \
+	  -c "program $< verify reset exit"
 
 flash-stlink: $(BUILD_DIR)/$(TARGET).hex
 	st-flash --format ihex write $<
