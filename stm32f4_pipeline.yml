@@ -1,0 +1,43 @@
+image: ubuntu:22.04
+
+pipelines:
+  default:
+    - step:
+        name: Build STM32F4
+        runs-on:
+          - self.hosted
+          - linux.arm64
+        caches:
+          - apt
+        script:
+          - apt-get update
+          - DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+              build-essential cmake make ninja-build python3 python3-pip \
+              gcc-arm-none-eabi binutils-arm-none-eabi gdb-multiarch \
+              git ca-certificates
+          # Eğer CubeMX Makefile varsa:
+          - make -j"$(nproc)"
+          # CMake kullanıyorsan:
+          # - cmake -S . -B build -G Ninja -DCMAKE_TOOLCHAIN_FILE=cmake/arm-gcc-toolchain.cmake
+          # - cmake --build build -j"$(nproc)"
+          # HEX/ BIN üret (uygun dosya adına göre düzenle)
+          - arm-none-eabi-objcopy -O ihex build/*.elf build/firmware.hex || true
+          - arm-none-eabi-objcopy -O binary build/*.elf build/firmware.bin || true
+        artifacts:
+          - build/**/*.elf
+          - build/**/*.hex
+          - build/**/*.bin
+
+    - step:
+        name: Unit tests (host)
+        runs-on:
+          - self.hosted
+          - linux.arm64
+        script:
+          # Ceedling/Unity veya GoogleTest ile host üzerinde test
+          # Örnek Ceedling:
+          # - gem install ceedling
+          # - ceedling test:all
+          # Örnek GoogleTest:
+          # - apt-get update && apt-get install -y libgtest-dev cmake
+          # - cmake -S tests -B tests/build && cmake --build tests/build && ctest --test-dir tests/build --output-on-failure
