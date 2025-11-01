@@ -2,8 +2,6 @@
 
 name: STM32F4 CI/CD Build
 
-# Bu workflow'u ne zaman çalıştıracağımızı belirliyoruz:
-# 'main' branch'ine push yapıldığında VEYA 'main' branch'ine yönelik bir pull request açıldığında.
 on:
   push:
     branches: [ "main" ]
@@ -11,48 +9,57 @@ on:
     branches: [ "main" ]
 
 jobs:
-  # 'build' adında bir iş (job) tanımlıyoruz
   build-firmware:
     name: Build STM32F4 Firmware
     
-    # Bu işin hangi koşucuda (runner) çalışacağını belirtiyoruz.
-    # Etiketlerinizin (self.hosted, linux.arm64) GitHub Actions'taki karşılığı
-    # [self-hosted, linux, arm64] şeklindedir.
-    # Bu, M4 makinenizdeki runner'ı hedefleyecektir.
-    #runs-on: [self-hosted, linux, arm64]
+    # Runner'ı etiketlediğimiz gibi çağırıyoruz. Bu doğru.
+    # macOS runner'ımız bu etiketlere sahip olduğu için işi alacak.
     runs-on: [self-hosted, linux, arm64]
 
+    # !!! BURASI ÇOK ÖNEMLİ !!!
+    # 'container:' bloğunu tamamen kaldırıyoruz.
+    # macOS runner'ları bu direktifi desteklemez.
+    # container:
+    #   image: docker.io/ugurkebir/stm32f4-build:14.3-rel1
+
     steps:
-      # Adım 1: Kodu checkout et (GitHub reposundaki kodları runner'a indir)
-      # Bu adım olmadan 'make' komutu çalışmaz.
+      # Adım 1: Kodu checkout et
+      # Bu adım doğrudan macOS runner üzerinde çalışır.
       - name: Checkout repository
         uses: actions/checkout@v4
 
       # Adım 2: Derlemeyi yap
-      # 'script' bloğunuzdaki komutları buraya taşıyoruz.
-      # NOT: 'apt-get update' komutu muhtemelen gereksizdir, çünkü 
-      # tüm bağımlılıklar (make, arm-none-eabi-gcc vb.) zaten 
-      # 'ugurkebir/stm32f4-build' imajınızın içinde olmalıdır.
-      # Eğer imajınızda yoksa, bu komutu 'sudo apt-get update' olarak ekleyebilirsiniz.
+      # Bu adımı manuel olarak Docker içinde çalıştıracağız.
       - name: Build firmware
         run: |
-          # '|| true' kısmını kaldırdım. Derleme başarısız olursa
-          # pipeline'ın da başarısız olması (kırmızı yanması) gerekir.
+          # macOS runner'ımıza, Docker'ı kullanarak bir komut çalıştırmasını söylüyoruz:
+          # --rm = Konteyner işi bitince kendini silsin.
+          # -v "${{ github.workspace }}:/app" = Checkout edilen kodu (macOS'taki)
+          #     konteyner içindeki /app klasörüne bağla (mount et).
+          # -w /app = Konteynerin çalışma dizinini /app olarak ayarla.
+          # ugurkebir/stm32f4-build:14.3-rel1 = Kullanılacak imaj.
+          # make -j"$(nproc)" = İmaj içinde çalıştırılacak komut.
+          docker run --rm -v "${{ github.workspace }}:/app" -w /app \
+          docker.io/ugurkebir/stm32f4-build:14.3-rel1 \
           make -j"$(nproc)"
 
       # Adım 3: .hex ve .bin dosyalarını oluştur
+      # Bu adımı da aynı yöntemle Docker içinde çalıştırıyoruz.
       - name: Create HEX and BIN files
         run: |
-          if ls build/*.elf >/dev/null 2>&1; then
-            arm-none-eabi-objcopy -O ihex build/*.elf build/firmware.hex
-            arm-none-eabi-objcopy -O binary build/*.elf build/firmware.bin
-          else
-            echo "Hata: Derleme sonrası .elf dosyası bulunamadı."
-            exit 1
-          fi
+          docker run --rm -v "${{ github.workspace }}:/app" -w /app \
+          docker.io/ugurkebir/stm32f4-build:14.3-rel1 \
+          sh -c "if ls build/*.elf >/dev/null 2>&1; then \
+                    arm-none-eabi-objcopy -O ihex build/*.elf build/firmware.hex; \
+                    arm-none-eabi-objcopy -O binary build/*.elf build/firmware.bin; \
+                 else \
+                    echo 'Hata: Derleme sonrası .elf dosyası bulunamadı.'; \
+                    exit 1; \
+                 fi"
 
-      # Adım 4: Derlenen dosyaları 'artifact' olarak kaydet
-      # Bu dosyalar, workflow bittikten sonra GitHub arayüzünden indirilebilir.
+      # Adım 4: Artifact'leri yükle
+      # Bu adım tekrar macOS runner üzerinde çalışır ve macOS üzerindeki
+      # 'build' klasöründen dosyaları alır (çünkü Docker oraya yazdı).
       - name: Upload firmware artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -62,16 +69,16 @@ jobs:
             build/*.hex
             build/*.bin
 
-  # İkinci 'step'inizi ayrı bir 'job' olarak ekledim.
-  # Bu, 'build-firmware' işi bittikten sonra çalışacaktır.
+  # Unit test işini de aynı mantıkla güncelliyoruz
   unit-tests:
     name: Unit Tests
-    # 'build-firmware' işinin başarılı olmasını bekler
     needs: build-firmware 
     runs-on: [self-hosted, linux, arm64]
-    container:
-      image: docker.io/ugurkebir/stm32f4-build:14.3-rel1
-
+    
+    # 'container:' bloğunu buradan da kaldırıyoruz.
+    
     steps:
       - name: Run unit tests
-        run: echo "No unit tests yet"
+        # İhtiyaç duyulursa, burayı da 'docker run ...' komutuyla
+        # konteyner içinde çalıştırabilirsiniz.
+        run: echo "No unit tests yet (running on host)"
