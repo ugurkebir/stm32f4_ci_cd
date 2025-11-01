@@ -19,7 +19,8 @@ jobs:
     # Etiketlerinizin (self.hosted, linux.arm64) GitHub Actions'taki karşılığı
     # [self-hosted, linux, arm64] şeklindedir.
     # Bu, M4 makinenizdeki runner'ı hedefleyecektir.
-    runs-on: [self-hosted, linux, arm64]
+    #runs-on: [self-hosted, linux, arm64]
+    runs-on: self-hosted
 
     # Bu işin adımlarını bir konteyner içinde çalıştırıyoruz.
     # Bu, sizin Docker Hub'daki özel imajınızdır.
