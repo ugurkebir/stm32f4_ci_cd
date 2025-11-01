@@ -169,7 +169,8 @@ jobs:
       - name: Run Bandit
         run: |
           . .venv/bin/activate
-          bandit -r . -ll -iii || true
+          bandit -r base_app -ll -iii -x .venv,venv,**/site-packages/**,tests,build,node_modules || true
+
 
       # CodeQL: buildless mod. Derleme gerektirmez.
       - name: Init CodeQL
