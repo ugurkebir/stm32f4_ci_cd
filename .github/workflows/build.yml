@@ -20,11 +20,10 @@ jobs:
       - name: Versiyon
         run: |
           arm-none-eabi-gcc --version || true
-          cmake --version || true
+          make --version || true
       - name: Derle
         run: |
-          mkdir -p build
-          cd build
+          cd base_app
           make -j$(nproc)
       - uses: actions/upload-artifact@v4
         with:
