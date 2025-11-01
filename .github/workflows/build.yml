@@ -11,34 +11,34 @@ on:
 jobs:
   build-firmware:
     name: Build STM32F4 Firmware
-    
-    # Runner'ı etiketlediğimiz gibi çağırıyoruz. Bu doğru.
-    # macOS runner'ımız bu etiketlere sahip olduğu için işi alacak.
+
+    # We call the Runner as we tagged it. This is correct.
+    # Our macOS runner will pick up the job because it has these labels.
     runs-on: [self-hosted, linux, arm64]
 
     steps:
-      # Adım 1: Kodu checkout et
-      # Bu adım doğrudan macOS runner üzerinde çalışır.
+      # Step 1: Checkout the code
+      # This step runs directly on the macOS runner.
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Adım 2: Derlemeyi yap
-      # Bu adımı manuel olarak Docker içinde çalıştıracağız.
+      # Step 2: Build the firmware
+      # We will run this step manually inside Docker.
       - name: Build firmware
         run: |
-          # macOS runner'ımıza, Docker'ı kullanarak bir komut çalıştırmasını söylüyoruz:
-          # --rm = Konteyner işi bitince kendini silsin.
-          # -v "${{ github.workspace }}:/app" = Checkout edilen kodu (macOS'taki)
-          #     konteyner içindeki /app klasörüne bağla (mount et).
-          # -w /app = Konteynerin çalışma dizinini /app(base_app olarak ayarla.
-          # ugurkebir/stm32f4-build:14.3-rel1 = Kullanılacak imaj.
-          # make -j"$(nproc)" = İmaj içinde çalıştırılacak komut.
+          # We tell our macOS runner to run a command using Docker:
+          # --rm = Remove the container once the job is done.
+          # -v "${{ github.workspace }}:/app" = Mount the checked-out code (on macOS)
+          #     to the /app folder inside the container.
+          # -w /app = Set the working directory inside the container to /app.
+          # ugurkebir/stm32f4-build:14.3-rel1 = The image to use.
+          # make -j"$(nproc)" = The command to run inside the image.
           docker run --rm -v "${{ github.workspace }}:/app" -w /app/base_app \
           docker.io/ugurkebir/stm32f4-build:14.3-rel1 \
           make -j"$(nproc)"
 
-      # Adım 3: .hex ve .bin dosyalarını oluştur
-      # Bu adımı da aynı yöntemle Docker içinde çalıştırıyoruz.
+      # Step 3: Create .hex and .bin files
+      # We will run this step manually inside Docker.
       - name: Create HEX and BIN files
         run: |
           docker run --rm -v "${{ github.workspace }}:/app" -w /app/base_app \
@@ -47,13 +47,13 @@ jobs:
                     arm-none-eabi-objcopy -O ihex build/*.elf build/firmware.hex; \
                     arm-none-eabi-objcopy -O binary build/*.elf build/firmware.bin; \
                  else \
-                    echo 'Hata: Derleme sonrası .elf dosyası bulunamadı.'; \
+                    echo 'Error: No .elf file found after compilation.'; \
                     exit 1; \
                  fi"
 
-      # Adım 4: Artifact'leri yükle
-      # Bu adım tekrar macOS runner üzerinde çalışır ve macOS üzerindeki
-      # 'build' klasöründen dosyaları alır (çünkü Docker oraya yazdı).
+      # Step 4: Upload artifacts
+      # This step runs again on the macOS runner and takes the files from
+      # the 'build' folder (because Docker wrote there).
       - name: Upload firmware artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -63,16 +63,14 @@ jobs:
             build/*.hex
             build/*.bin
 
-  # Unit test işini de aynı mantıkla güncelliyoruz
+  # Unit tests job
   unit-tests:
     name: Unit Tests
     needs: build-firmware 
     runs-on: [self-hosted, linux, arm64]
     
-    # 'container:' bloğunu buradan da kaldırıyoruz.
-    
     steps:
       - name: Run unit tests
-        # İhtiyaç duyulursa, burayı da 'docker run ...' komutuyla
-        # konteyner içinde çalıştırabilirsiniz.
+        # If needed, you can also run this inside a container using 'docker run ...'
+        # command.
         run: echo "No unit tests yet (running on host)"
