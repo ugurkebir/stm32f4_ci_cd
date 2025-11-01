@@ -8,45 +8,70 @@ on:
 permissions:
   contents: read
 
+
 jobs:
   build:
-    # Container job sadece Linux'ta çalışır
     runs-on: ubuntu-latest
-
-    # Docker Hub’daki imajınızı çekip tüm adımları bu container içinde çalıştırır
     container:
       image: ugurkebir/stm32f4-build:14.3-rel1
-      # İmaj public ise gerekmez. Rate limitten kaçınmak için creds ekleyebilirsiniz.
-      # credentials:
-      #   username: ${{ secrets.DOCKERHUB_USERNAME }}
-      #   password: ${{ secrets.DOCKERHUB_TOKEN }}
-
+      options: --user 0
     steps:
-      - name: Kaynak kodu al
-        uses: actions/checkout@v4
-
-      # Gerekirse ek paketler; çoğu zaman imajınız yeterli olacaktır.
-      # - name: Paketleri kur
-      #   run: |
-      #     apt-get update
-      #     apt-get install -y --no-install-recommends make ninja-build
-
-      - name: Versiyon bilgi
+      - uses: actions/checkout@v4
+      - name: Versiyon
         run: |
           arm-none-eabi-gcc --version || true
           cmake --version || true
-          make --version || true
-
       - name: Derle
-        shell: bash
         run: |
           mkdir -p build
           cd build
           cmake .. -DCMAKE_BUILD_TYPE=Release
           cmake --build . -- -j$(nproc)
-
-      - name: Artefaktı yükle
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: firmware
           path: build/**/*.bin
+
+
+# jobs:
+#   build:
+#     # Container job sadece Linux'ta çalışır
+#     runs-on: ubuntu-latest
+
+#     # Docker Hub’daki imajınızı çekip tüm adımları bu container içinde çalıştırır
+#     container:
+#       image: ugurkebir/stm32f4-build:14.3-rel1
+#       # İmaj public ise gerekmez. Rate limitten kaçınmak için creds ekleyebilirsiniz.
+#       # credentials:
+#       #   username: ${{ secrets.DOCKERHUB_USERNAME }}
+#       #   password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+#     steps:
+#       - name: Kaynak kodu al
+#         uses: actions/checkout@v4
+
+#       # Gerekirse ek paketler; çoğu zaman imajınız yeterli olacaktır.
+#       # - name: Paketleri kur
+#       #   run: |
+#       #     apt-get update
+#       #     apt-get install -y --no-install-recommends make ninja-build
+
+#       - name: Versiyon bilgi
+#         run: |
+#           arm-none-eabi-gcc --version || true
+#           cmake --version || true
+#           make --version || true
+
+#       - name: Derle
+#         shell: bash
+#         run: |
+#           mkdir -p build
+#           cd build
+#           cmake .. -DCMAKE_BUILD_TYPE=Release
+#           cmake --build . -- -j$(nproc)
+
+#       - name: Artefaktı yükle
+#         uses: actions/upload-artifact@v4
+#         with:
+#           name: firmware
+#           path: build/**/*.bin
