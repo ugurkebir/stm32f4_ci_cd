@@ -20,12 +20,7 @@ jobs:
     # [self-hosted, linux, arm64] şeklindedir.
     # Bu, M4 makinenizdeki runner'ı hedefleyecektir.
     #runs-on: [self-hosted, linux, arm64]
-    runs-on: self-hosted
-
-    # Bu işin adımlarını bir konteyner içinde çalıştırıyoruz.
-    # Bu, sizin Docker Hub'daki özel imajınızdır.
-    container:
-      image: docker.io/ugurkebir/stm32f4-build:14.3-rel1
+    runs-on: [self-hosted, linux, arm64]
 
     steps:
       # Adım 1: Kodu checkout et (GitHub reposundaki kodları runner'a indir)
