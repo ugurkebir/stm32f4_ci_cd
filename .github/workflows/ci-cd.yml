@@ -145,30 +145,39 @@ jobs:
     name: Security Scan
     runs-on: ubuntu-latest
     permissions:
-        security-events: write
-        contents: read
-        actions: read
+      security-events: write
+      contents: read
+      actions: read
+
+    container:
+      image: docker.io/ugurkebir/stm32f4-build:14.3-rel1
 
     steps:
-    - name: Checkout Code
-      uses: actions/checkout@v4
-      
-    - name: Run Bandit
-      uses: PyCQA/bandit-action@v1
-      with:
-        targets: "."
-        severity: medium
-        confidence: medium
-      # bulgular pipeline'ı kırmasın istiyorsan:
-    #   continue-on-error: true
-        
-    - name: Run CodeQL Analysis
-      uses: github/codeql-action/init@v2
-      with:
-        languages: cpp
-        
-    - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@v2
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Bandit
+        uses: PyCQA/bandit-action@v1
+        with:
+          targets: "."
+          severity: medium
+          confidence: medium
+
+      - name: Init CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: cpp
+
+      # This task must be built *within the same container* to capture CodeQL compiler calls
+      - name: Build firmware
+        working-directory: ./base_app
+        run: |
+          make -j"$(nproc)"
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@v3
+
+
 
   # Release Job (only on main branch)
   release:
