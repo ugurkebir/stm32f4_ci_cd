@@ -16,12 +16,6 @@ jobs:
     # macOS runner'ımız bu etiketlere sahip olduğu için işi alacak.
     runs-on: [self-hosted, linux, arm64]
 
-    # !!! BURASI ÇOK ÖNEMLİ !!!
-    # 'container:' bloğunu tamamen kaldırıyoruz.
-    # macOS runner'ları bu direktifi desteklemez.
-    # container:
-    #   image: docker.io/ugurkebir/stm32f4-build:14.3-rel1
-
     steps:
       # Adım 1: Kodu checkout et
       # Bu adım doğrudan macOS runner üzerinde çalışır.
@@ -36,10 +30,10 @@ jobs:
           # --rm = Konteyner işi bitince kendini silsin.
           # -v "${{ github.workspace }}:/app" = Checkout edilen kodu (macOS'taki)
           #     konteyner içindeki /app klasörüne bağla (mount et).
-          # -w /app = Konteynerin çalışma dizinini /app olarak ayarla.
+          # -w /app = Konteynerin çalışma dizinini /app(base_app olarak ayarla.
           # ugurkebir/stm32f4-build:14.3-rel1 = Kullanılacak imaj.
           # make -j"$(nproc)" = İmaj içinde çalıştırılacak komut.
-          docker run --rm -v "${{ github.workspace }}:/app" -w /app \
+          docker run --rm -v "${{ github.workspace }}:/app" -w /app/base_app \
           docker.io/ugurkebir/stm32f4-build:14.3-rel1 \
           make -j"$(nproc)"
 
@@ -47,7 +41,7 @@ jobs:
       # Bu adımı da aynı yöntemle Docker içinde çalıştırıyoruz.
       - name: Create HEX and BIN files
         run: |
-          docker run --rm -v "${{ github.workspace }}:/app" -w /app \
+          docker run --rm -v "${{ github.workspace }}:/app" -w /app/base_app \
           docker.io/ugurkebir/stm32f4-build:14.3-rel1 \
           sh -c "if ls build/*.elf >/dev/null 2>&1; then \
                     arm-none-eabi-objcopy -O ihex build/*.elf build/firmware.hex; \
