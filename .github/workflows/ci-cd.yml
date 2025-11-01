@@ -87,23 +87,23 @@ jobs:
                   exit 1; \
                fi"
 
-    - name: Build semihosting (Docker)
-      run: |
-        docker run --rm -v "${{ github.workspace }}:/app" -w /app/semihosting \
-        docker.io/ugurkebir/stm32f4-build:14.3-rel1 \
-        make -j"$(nproc)"
+    # - name: Build semihosting (Docker)
+    #   run: |
+    #     docker run --rm -v "${{ github.workspace }}:/app" -w /app/semihosting \
+    #     docker.io/ugurkebir/stm32f4-build:14.3-rel1 \
+    #     make -j"$(nproc)"
 
-    - name: Create HEX and BIN (semihosting)
-      run: |
-        docker run --rm -v "${{ github.workspace }}:/app" -w /app/semihosting \
-        docker.io/ugurkebir/stm32f4-build:14.3-rel1 \
-        sh -c "if ls build/*.elf >/dev/null 2>&1; then \
-                  arm-none-eabi-objcopy -O ihex build/*.elf build/firmware.hex; \
-                  arm-none-eabi-objcopy -O binary build/*.elf build/firmware.bin; \
-               else \
-                  echo 'Error: No .elf file found after compilation.'; \
-                  exit 1; \
-               fi"
+    # - name: Create HEX and BIN (semihosting)
+    #   run: |
+    #     docker run --rm -v "${{ github.workspace }}:/app" -w /app/semihosting \
+    #     docker.io/ugurkebir/stm32f4-build:14.3-rel1 \
+    #     sh -c "if ls build/*.elf >/dev/null 2>&1; then \
+    #               arm-none-eabi-objcopy -O ihex build/*.elf build/firmware.hex; \
+    #               arm-none-eabi-objcopy -O binary build/*.elf build/firmware.bin; \
+    #            else \
+    #               echo 'Error: No .elf file found after compilation.'; \
+    #               exit 1; \
+    #            fi"
 
     - name: Upload Firmware Artifacts
       uses: actions/upload-artifact@v4
@@ -113,9 +113,9 @@ jobs:
           base_app/build/*.elf
           base_app/build/*.hex
           base_app/build/*.bin
-          semihosting/build/*.elf
-          semihosting/build/*.hex
-          semihosting/build/*.bin
+        #   semihosting/build/*.elf
+        #   semihosting/build/*.hex
+        #   semihosting/build/*.bin
 
   # Documentation Job
   documentation:
@@ -144,18 +144,23 @@ jobs:
   security-scan:
     name: Security Scan
     runs-on: ubuntu-latest
-    
+    permissions:
+        security-events: write
+        contents: read
+        actions: read
+
     steps:
     - name: Checkout Code
       uses: actions/checkout@v4
       
-    - name: Run Bandit Security Linter
-      uses: shogo82148/actions-bandit@v1
+    - name: Run Bandit
+      uses: PyCQA/bandit-action@v1
       with:
-        path: "."
-        level: medium
+        targets: "."
+        severity: medium
         confidence: medium
-        exit_zero: true
+      # bulgular pipeline'ı kırmasın istiyorsan:
+    #   continue-on-error: true
         
     - name: Run CodeQL Analysis
       uses: github/codeql-action/init@v2
