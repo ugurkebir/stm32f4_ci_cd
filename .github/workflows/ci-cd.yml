@@ -145,16 +145,22 @@ jobs:
     name: Security Scan
     runs-on: ubuntu-latest
     permissions:
-      security-events: write
       contents: read
       actions: read
+      security-events: write
 
     container:
       image: docker.io/ugurkebir/stm32f4-build:14.3-rel1
+      options: --user 0:0   # root
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      # After checkout, fix workspace ownership
+      - name: Fix workspace ownership
+        run: |
+          chown -R builder:builder "$GITHUB_WORKSPACE"
 
       - name: Run Bandit
         uses: PyCQA/bandit-action@v1
@@ -168,11 +174,9 @@ jobs:
         with:
           languages: cpp
 
-      # This task must be built *within the same container* to capture CodeQL compiler calls
       - name: Build firmware
-        working-directory: ./base_app
         run: |
-          make -j"$(nproc)"
+          sudo -u builder make -C base_app -j"$(nproc)"
 
       - name: Analyze
         uses: github/codeql-action/analyze@v3
