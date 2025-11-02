@@ -223,6 +223,7 @@ void HAL_GPIO_TogglePin(GPIO_TypeDef* GPIOx, uint16_t GPIO_Pin)
   * @param  GPIO_Pin: GPIO pin
   * @retval Pin state
   */
+// cppcheck-suppress constParameterPointer
 GPIO_PinState HAL_GPIO_ReadPin(GPIO_TypeDef* GPIOx, uint16_t GPIO_Pin)
 {
     if (GPIOx && (GPIOx->IDR & GPIO_Pin)) {
