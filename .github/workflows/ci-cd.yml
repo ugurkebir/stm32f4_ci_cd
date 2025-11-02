@@ -15,7 +15,7 @@ jobs:
       CCACHE_DIR: ~/.ccache
       CC: ccache gcc
       CXX: ccache g++
-      APT_CACHE_DIR: ${{ runner.temp }}/aptcache-unit
+      APT_CACHE_DIR: ${{ github.workspace }}/.aptcache-unit
 
     steps:
     - name: Checkout Code
@@ -109,22 +109,22 @@ jobs:
     - name: Build base_app (Docker)
       run: |
         docker run --rm -v "${{ github.workspace }}:/app" -w /app/base_app \
-        -v "${{ github.workspace }}/.ccache:/home/builder/.ccache" \
-        docker.io/ugurkebir/stm32f4-build:14.3-rel1 \
-        make -j"$(nproc)"
+          -v "${{ github.workspace }}/.ccache:/home/builder/.ccache" \
+          docker.io/ugurkebir/stm32f4-build:14.3-rel1 \
+          make -j"$(nproc)"
 
     - name: Create HEX and BIN (base_app)
       run: |
         docker run --rm -v "${{ github.workspace }}:/app" -w /app/base_app \
-        -v "${{ github.workspace }}/.ccache:/home/builder/.ccache" \
-        docker.io/ugurkebir/stm32f4-build:14.3-rel1 \
-        sh -c "if ls build/*.elf >/dev/null 2>&1; then \
-                  arm-none-eabi-objcopy -O ihex build/*.elf build/firmware.hex; \
-                  arm-none-eabi-objcopy -O binary build/*.elf build/firmware.bin; \
-               else \
-                  echo 'Error: No .elf file found after compilation.'; \
-                  exit 1; \
-               fi"
+          -v "${{ github.workspace }}/.ccache:/home/builder/.ccache" \
+          docker.io/ugurkebir/stm32f4-build:14.3-rel1 \
+          sh -c "if ls build/*.elf >/dev/null 2>&1; then \
+                    arm-none-eabi-objcopy -O ihex build/*.elf build/firmware.hex; \
+                    arm-none-eabi-objcopy -O binary build/*.elf build/firmware.bin; \
+                 else \
+                    echo 'Error: No .elf file found after compilation.'; \
+                    exit 1; \
+                 fi"
 
     # - name: Build semihosting (Docker)
     #   run: |
@@ -188,7 +188,7 @@ jobs:
       actions: read
       security-events: write
     env:
-      APT_CACHE_DIR: ${{ runner.temp }}/aptcache-sec
+      APT_CACHE_DIR: ${{ github.workspace }}/.aptcache-sec
 
     steps:
       - name: Checkout
