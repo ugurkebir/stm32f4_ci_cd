@@ -1,0 +1,279 @@
+name: STM32F4 CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  # Unit Testing Job
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      
+    - name: Install Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential lcov valgrind cppcheck
+        
+    - name: Run Unit Tests
+      working-directory: ./base_app
+      run: |
+        make -f test.mk test
+        
+    - name: Run Unit Tests with Coverage
+      working-directory: ./base_app
+      run: |
+        make -f test.mk coverage
+        
+    - name: Generate Coverage Report
+      working-directory: ./base_app
+      run: |
+        make -f test.mk coverage-html
+        
+    - name: Upload Coverage Reports to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./base_app/coverage.info
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+        
+    - name: Archive Coverage Results
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-report
+        path: base_app/coverage-html/
+        
+    - name: Run Static Analysis
+      working-directory: ./base_app
+      run: |
+        make -f test.mk static-analysis
+        
+    - name: Run Memory Check
+      working-directory: ./base_app
+      run: |
+        make -f test.mk test-memcheck
+
+  # STM32 Build Job (self-hosted + Docker for reproducibility)
+  build-firmware:
+    name: STM32 Firmware Build
+    runs-on: [self-hosted, linux, arm64]
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Build base_app (Docker)
+      run: |
+        docker run --rm -v "${{ github.workspace }}:/app" -w /app/base_app \
+        docker.io/ugurkebir/stm32f4-build:14.3-rel1 \
+        make -j"$(nproc)"
+
+    - name: Create HEX and BIN (base_app)
+      run: |
+        docker run --rm -v "${{ github.workspace }}:/app" -w /app/base_app \
+        docker.io/ugurkebir/stm32f4-build:14.3-rel1 \
+        sh -c "if ls build/*.elf >/dev/null 2>&1; then \
+                  arm-none-eabi-objcopy -O ihex build/*.elf build/firmware.hex; \
+                  arm-none-eabi-objcopy -O binary build/*.elf build/firmware.bin; \
+               else \
+                  echo 'Error: No .elf file found after compilation.'; \
+                  exit 1; \
+               fi"
+
+    # - name: Build semihosting (Docker)
+    #   run: |
+    #     docker run --rm -v "${{ github.workspace }}:/app" -w /app/semihosting \
+    #     docker.io/ugurkebir/stm32f4-build:14.3-rel1 \
+    #     make -j"$(nproc)"
+
+    # - name: Create HEX and BIN (semihosting)
+    #   run: |
+    #     docker run --rm -v "${{ github.workspace }}:/app" -w /app/semihosting \
+    #     docker.io/ugurkebir/stm32f4-build:14.3-rel1 \
+    #     sh -c "if ls build/*.elf >/dev/null 2>&1; then \
+    #               arm-none-eabi-objcopy -O ihex build/*.elf build/firmware.hex; \
+    #               arm-none-eabi-objcopy -O binary build/*.elf build/firmware.bin; \
+    #            else \
+    #               echo 'Error: No .elf file found after compilation.'; \
+    #               exit 1; \
+    #            fi"
+
+    - name: Upload Firmware Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: firmware-artifacts
+        path: |
+          base_app/build/*.elf
+          base_app/build/*.hex
+          base_app/build/*.bin
+        #   semihosting/build/*.elf
+        #   semihosting/build/*.hex
+        #   semihosting/build/*.bin
+
+  # Documentation Job
+  documentation:
+    name: Documentation Check
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      
+    - name: Check README Files
+      run: |
+        # Check if README files exist and are not empty
+        test -s README.md
+        test -s base_app/tests/README.md
+        
+    - name: Validate Markdown
+      uses: articulate/actions-markdownlint@v1
+      with:
+        config: .markdownlint.json
+        files: '**/*.md'
+        ignore: node_modules
+      continue-on-error: true
+
+  # Security Scan Job
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install C/C++ linters
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cppcheck
+
+      # C/C++ static analysis with cppcheck 
+      - name: Run cppcheck
+      # TODO: Add unusedFunction
+        run: |
+          cppcheck \
+            --enable=warning,style,performance,portability \
+            --inconclusive \
+            --force \
+            --std=c11 \
+            --std=c++17 \
+            --suppress=missingIncludeSystem \
+            --error-exitcode=1 \
+            -i base_app/build -i base_app/Drivers \
+            --suppress=constParameterPointer:*stm32f4xx_hal_*.c \
+            base_app
+
+      # CodeQL: CodeQL: buildless mode; does not require compilation.
+      - name: Init CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: cpp
+          build-mode: none
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@v3
+
+  # Release Job (only on main branch)
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [unit-tests, build-firmware, documentation]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      
+    - name: Download Build Artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: firmware-artifacts
+        path: ./artifacts/
+
+    - name: Zip Artifacts
+      env:
+        VERSION: ${{ steps.get_version.outputs.VERSION }}
+      run: |
+        ZIP_NAME="stm32f4-firmware-${VERSION}.zip"
+        cd artifacts
+        zip -r "../$ZIP_NAME" .
+        
+    - name: Get Version
+      id: get_version
+      run: |
+        # Extract version from git tag or use commit hash
+        if git describe --tags --exact-match 2>/dev/null; then
+          VERSION=$(git describe --tags --exact-match)
+        else
+          VERSION="v$(date +%Y%m%d)-$(git rev-parse --short HEAD)"
+        fi
+        echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+        
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.get_version.outputs.VERSION }}
+        release_name: STM32F4 Release ${{ steps.get_version.outputs.VERSION }}
+        body: |
+          ## Changes in this Release
+          
+          ### Features
+          - STM32F4 base application firmware
+          - Semihosting support for debugging
+          - Comprehensive unit test suite
+          
+          ### Build Information
+          - Commit: ${{ github.sha }}
+          - Build Date: ${{ github.run_number }}
+          
+          ### Artifacts
+          - `*.elf` - Executable files for debugging
+          - `*.hex` - Intel HEX files for programming
+          - `*.bin` - Binary files for direct programming
+          - `*.map` - Memory map files
+          
+        draft: false
+        prerelease: false
+        
+    - name: Upload Release Assets
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./stm32f4-firmware-${{ steps.get_version.outputs.VERSION }}.zip
+        asset_name: stm32f4-firmware-${{ steps.get_version.outputs.VERSION }}.zip
+        asset_content_type: application/zip
+
+  # Notification Job
+  notify:
+    name: Notify Build Status
+    runs-on: ubuntu-latest
+    needs: [unit-tests, build-firmware, documentation, security-scan]
+    if: always()
+    
+    steps:
+    - name: Notify Success
+      if: ${{ needs.unit-tests.result == 'success' && needs.build-firmware.result == 'success' }}
+      run: |
+        echo "✅ All builds and tests passed successfully!"
+        
+    - name: Notify Failure
+      if: ${{ needs.unit-tests.result == 'failure' || needs.build-firmware.result == 'failure' }}
+      run: |
+        echo "❌ Build or tests failed. Check the logs for details."
+        exit 1
