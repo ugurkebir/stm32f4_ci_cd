@@ -118,7 +118,6 @@ jobs:
         #   semihosting/build/*.bin
 
   # Documentation Job
-  
   documentation:
     name: Documentation Check
     runs-on: ubuntu-latest
