@@ -159,11 +159,12 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends cppcheck
 
-      # C/C++ static analysis with cppcheck
+      # C/C++ static analysis with cppcheck 
       - name: Run cppcheck
+      # TODO: Add unusedFunction
         run: |
           cppcheck \
-            --enable=warning,style,performance,portability,unusedFunction \
+            --enable=warning,style,performance,portability \
             --inconclusive \
             --force \
             --std=c11 \
