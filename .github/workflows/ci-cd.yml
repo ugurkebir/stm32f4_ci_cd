@@ -15,6 +15,7 @@ jobs:
       CCACHE_DIR: ~/.ccache
       CC: ccache gcc
       CXX: ccache g++
+      APT_CACHE_DIR: ${{ runner.temp }}/aptcache-unit
 
     steps:
     - name: Checkout Code
@@ -23,12 +24,10 @@ jobs:
     - name: Cache APT archives
       uses: actions/cache@v4
       with:
-        path: |
-          /var/cache/apt
-          /var/lib/apt/lists
-        key: ${{ runner.os }}-apt-buildessential-lcov-valgrind-cppcheck
+        path: ${{ env.APT_CACHE_DIR }}
+        key: ${{ runner.os }}-aptcache-buildessential-lcov-valgrind-cppcheck
         restore-keys: |
-          ${{ runner.os }}-apt-
+          ${{ runner.os }}-aptcache-
 
     - name: Cache ccache
       uses: actions/cache@v4
@@ -40,9 +39,16 @@ jobs:
 
     - name: Install Dependencies
       run: |
-        sudo rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock || true
-        sudo apt-get update
-        sudo apt-get install -y --no-install-recommends build-essential lcov valgrind cppcheck
+        mkdir -p "$APT_CACHE_DIR/archives/partial" "$APT_CACHE_DIR/lists/partial"
+        sudo chown -R "$USER:$USER" "$APT_CACHE_DIR"
+        rm -f "$APT_CACHE_DIR/archives/lock" "$APT_CACHE_DIR/lists/lock" || true
+        sudo apt-get \
+          -o dir::cache::archives="$APT_CACHE_DIR/archives" \
+          -o dir::state::lists="$APT_CACHE_DIR/lists" update
+        sudo apt-get \
+          -o dir::cache::archives="$APT_CACHE_DIR/archives" \
+          -o dir::state::lists="$APT_CACHE_DIR/lists" \
+          install -y --no-install-recommends build-essential lcov valgrind cppcheck
 
     - name: Run Unit Tests
       working-directory: ./base_app
@@ -181,6 +187,8 @@ jobs:
       contents: read
       actions: read
       security-events: write
+    env:
+      APT_CACHE_DIR: ${{ runner.temp }}/aptcache-sec
 
     steps:
       - name: Checkout
@@ -189,18 +197,23 @@ jobs:
       - name: Cache APT for cppcheck
         uses: actions/cache@v4
         with:
-          path: |
-            /var/cache/apt
-            /var/lib/apt/lists
-          key: ${{ runner.os }}-apt-cppcheck
+          path: ${{ env.APT_CACHE_DIR }}
+          key: ${{ runner.os }}-aptcache-cppcheck
           restore-keys: |
-            ${{ runner.os }}-apt-
+            ${{ runner.os }}-aptcache-
 
       - name: Install C/C++ linters
         run: |
-          sudo rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock || true
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends cppcheck
+          mkdir -p "$APT_CACHE_DIR/archives/partial" "$APT_CACHE_DIR/lists/partial"
+          sudo chown -R "$USER:$USER" "$APT_CACHE_DIR"
+          rm -f "$APT_CACHE_DIR/archives/lock" "$APT_CACHE_DIR/lists/lock" || true
+          sudo apt-get \
+            -o dir::cache::archives="$APT_CACHE_DIR/archives" \
+            -o dir::state::lists="$APT_CACHE_DIR/lists" update
+          sudo apt-get \
+            -o dir::cache::archives="$APT_CACHE_DIR/archives" \
+            -o dir::state::lists="$APT_CACHE_DIR/lists" \
+            install -y --no-install-recommends cppcheck
 
       - name: Run cppcheck
         run: |
