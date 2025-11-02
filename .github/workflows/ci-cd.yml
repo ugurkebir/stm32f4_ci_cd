@@ -170,7 +170,8 @@ jobs:
             --std=c++17 \
             --suppress=missingIncludeSystem \
             --error-exitcode=1 \
-            -i base_app/build \
+            -i base_app/build -i base_app/Drivers \
+            --suppress=constParameterPointer:*stm32f4xx_hal_*.c \
             base_app
 
       # CodeQL: CodeQL: buildless mode; does not require compilation.
