@@ -11,31 +11,54 @@ jobs:
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest
-    
+    env:
+      CCACHE_DIR: ~/.ccache
+      CC: ccache gcc
+      CXX: ccache g++
+
     steps:
     - name: Checkout Code
       uses: actions/checkout@v4
-      
+
+    - name: Cache APT archives
+      uses: actions/cache@v4
+      with:
+        path: |
+          /var/cache/apt
+          /var/lib/apt/lists
+        key: ${{ runner.os }}-apt-buildessential-lcov-valgrind-cppcheck
+        restore-keys: |
+          ${{ runner.os }}-apt-
+
+    - name: Cache ccache
+      uses: actions/cache@v4
+      with:
+        path: ~/.ccache
+        key: ${{ runner.os }}-ccache-unit-${{ hashFiles('base_app/**/*', 'base_app/**/Makefile', 'base_app/**/test.mk') }}
+        restore-keys: |
+          ${{ runner.os }}-ccache-unit-
+
     - name: Install Dependencies
       run: |
+        sudo rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock || true
         sudo apt-get update
-        sudo apt-get install -y build-essential lcov valgrind cppcheck
-        
+        sudo apt-get install -y --no-install-recommends build-essential lcov valgrind cppcheck
+
     - name: Run Unit Tests
       working-directory: ./base_app
       run: |
         make -f test.mk test
-        
+
     - name: Run Unit Tests with Coverage
       working-directory: ./base_app
       run: |
         make -f test.mk coverage
-        
+
     - name: Generate Coverage Report
       working-directory: ./base_app
       run: |
         make -f test.mk coverage-html
-        
+
     - name: Upload Coverage Reports to Codecov
       uses: codecov/codecov-action@v3
       with:
@@ -43,18 +66,18 @@ jobs:
         flags: unittests
         name: codecov-umbrella
         fail_ci_if_error: false
-        
+
     - name: Archive Coverage Results
       uses: actions/upload-artifact@v4
       with:
         name: coverage-report
         path: base_app/coverage-html/
-        
+
     - name: Run Static Analysis
       working-directory: ./base_app
       run: |
         make -f test.mk static-analysis
-        
+
     - name: Run Memory Check
       working-directory: ./base_app
       run: |
@@ -69,15 +92,25 @@ jobs:
     - name: Checkout Code
       uses: actions/checkout@v4
 
+    - name: Cache ccache for firmware build
+      uses: actions/cache@v4
+      with:
+        path: .ccache
+        key: ${{ runner.os }}-ccache-fw-${{ hashFiles('base_app/**/*', 'base_app/**/Makefile') }}
+        restore-keys: |
+          ${{ runner.os }}-ccache-fw-
+
     - name: Build base_app (Docker)
       run: |
         docker run --rm -v "${{ github.workspace }}:/app" -w /app/base_app \
+        -v "${{ github.workspace }}/.ccache:/home/builder/.ccache" \
         docker.io/ugurkebir/stm32f4-build:14.3-rel1 \
         make -j"$(nproc)"
 
     - name: Create HEX and BIN (base_app)
       run: |
         docker run --rm -v "${{ github.workspace }}:/app" -w /app/base_app \
+        -v "${{ github.workspace }}/.ccache:/home/builder/.ccache" \
         docker.io/ugurkebir/stm32f4-build:14.3-rel1 \
         sh -c "if ls build/*.elf >/dev/null 2>&1; then \
                   arm-none-eabi-objcopy -O ihex build/*.elf build/firmware.hex; \
@@ -121,17 +154,17 @@ jobs:
   documentation:
     name: Documentation Check
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout Code
       uses: actions/checkout@v4
-      
+
     - name: Check README Files
       run: |
         # Check if README files exist and are not empty
         test -s README.md
         test -s base_app/tests/README.md
-        
+
     - name: Validate Markdown
       uses: articulate/actions-markdownlint@v1
       with:
@@ -153,14 +186,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Cache APT for cppcheck
+        uses: actions/cache@v4
+        with:
+          path: |
+            /var/cache/apt
+            /var/lib/apt/lists
+          key: ${{ runner.os }}-apt-cppcheck
+          restore-keys: |
+            ${{ runner.os }}-apt-
+
       - name: Install C/C++ linters
         run: |
+          sudo rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock || true
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends cppcheck
 
-      # C/C++ static analysis with cppcheck 
       - name: Run cppcheck
-      # TODO: Add unusedFunction
         run: |
           cppcheck \
             --enable=warning,style,performance,portability \
@@ -190,25 +232,11 @@ jobs:
     runs-on: ubuntu-latest
     needs: [unit-tests, build-firmware, documentation]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    
+
     steps:
     - name: Checkout Code
       uses: actions/checkout@v4
-      
-    - name: Download Build Artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: firmware-artifacts
-        path: ./artifacts/
 
-    - name: Zip Artifacts
-      env:
-        VERSION: ${{ steps.get_version.outputs.VERSION }}
-      run: |
-        ZIP_NAME="stm32f4-firmware-${VERSION}.zip"
-        cd artifacts
-        zip -r "../$ZIP_NAME" .
-        
     - name: Get Version
       id: get_version
       run: |
@@ -219,7 +247,19 @@ jobs:
           VERSION="v$(date +%Y%m%d)-$(git rev-parse --short HEAD)"
         fi
         echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
-        
+
+    - name: Download Build Artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: firmware-artifacts
+        path: ./artifacts/
+
+    - name: Zip Artifacts
+      run: |
+        ZIP_NAME="stm32f4-firmware-${{ steps.get_version.outputs.VERSION }}.zip"
+        cd artifacts
+        zip -r "../$ZIP_NAME" .
+
     - name: Create Release
       id: create_release
       uses: actions/create-release@v1
@@ -230,25 +270,25 @@ jobs:
         release_name: STM32F4 Release ${{ steps.get_version.outputs.VERSION }}
         body: |
           ## Changes in this Release
-          
+
           ### Features
           - STM32F4 base application firmware
           - Semihosting support for debugging
           - Comprehensive unit test suite
-          
+
           ### Build Information
           - Commit: ${{ github.sha }}
           - Build Date: ${{ github.run_number }}
-          
+
           ### Artifacts
           - `*.elf` - Executable files for debugging
           - `*.hex` - Intel HEX files for programming
           - `*.bin` - Binary files for direct programming
           - `*.map` - Memory map files
-          
+
         draft: false
         prerelease: false
-        
+
     - name: Upload Release Assets
       uses: actions/upload-release-asset@v1
       env:
@@ -265,13 +305,13 @@ jobs:
     runs-on: ubuntu-latest
     needs: [unit-tests, build-firmware, documentation, security-scan]
     if: always()
-    
+
     steps:
     - name: Notify Success
       if: ${{ needs.unit-tests.result == 'success' && needs.build-firmware.result == 'success' }}
       run: |
         echo "✅ All builds and tests passed successfully!"
-        
+
     - name: Notify Failure
       if: ${{ needs.unit-tests.result == 'failure' || needs.build-firmware.result == 'failure' }}
       run: |
