@@ -50,6 +50,13 @@ jobs:
           -o dir::state::lists="$APT_CACHE_DIR/lists" \
           install -y --no-install-recommends build-essential lcov valgrind cppcheck
 
+    - name: Cleanup APT Cache
+      if: always()
+      run: |
+        # Remove lock files and partial directories to avoid permission errors during cache save
+        rm -f "$APT_CACHE_DIR/archives/lock" "$APT_CACHE_DIR/lists/lock" || true
+        rm -rf "$APT_CACHE_DIR/archives/partial" "$APT_CACHE_DIR/lists/partial" || true
+
     - name: Run Unit Tests
       working-directory: ./base_app
       run: |
@@ -214,6 +221,13 @@ jobs:
             -o dir::cache::archives="$APT_CACHE_DIR/archives" \
             -o dir::state::lists="$APT_CACHE_DIR/lists" \
             install -y --no-install-recommends cppcheck
+
+      - name: Cleanup APT Cache
+        if: always()
+        run: |
+          # Remove lock files and partial directories to avoid permission errors during cache save
+          rm -f "$APT_CACHE_DIR/archives/lock" "$APT_CACHE_DIR/lists/lock" || true
+          rm -rf "$APT_CACHE_DIR/archives/partial" "$APT_CACHE_DIR/lists/partial" || true
 
       - name: Run cppcheck
         run: |
