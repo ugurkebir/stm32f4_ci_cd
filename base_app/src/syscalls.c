@@ -81,9 +81,7 @@ __attribute__((weak)) int _write(int file, char *ptr, int len)
 {
   (void)file;
   int DataIdx;
-
   const char *str = ptr;
-
   for (DataIdx = 0; DataIdx < len; DataIdx++)
   {
     __io_putchar(*str++);
