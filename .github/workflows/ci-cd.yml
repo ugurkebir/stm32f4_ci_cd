@@ -259,21 +259,34 @@ jobs:
     runs-on: ubuntu-latest
     needs: [unit-tests, build-firmware, documentation]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    permissions:
+      contents: write
 
     steps:
     - name: Checkout Code
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 0   # tag kontrolü için gerekli
 
     - name: Get Version
       id: get_version
       run: |
-        # Extract version from git tag or use commit hash
-        if git describe --tags --exact-match 2>/dev/null; then
+        if git describe --tags --exact-match >/dev/null 2>&1; then
           VERSION=$(git describe --tags --exact-match)
         else
           VERSION="v$(date +%Y%m%d)-$(git rev-parse --short HEAD)"
         fi
         echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+
+    - name: Ensure tag exists
+      run: |
+        VERSION="${{ steps.get_version.outputs.VERSION }}"
+        if ! git rev-parse -q --verify "refs/tags/$VERSION" >/dev/null; then
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git tag -a "$VERSION" -m "Release $VERSION"
+          git push origin "$VERSION"
+        fi
 
     - name: Download Build Artifacts
       uses: actions/download-artifact@v4
@@ -287,14 +300,12 @@ jobs:
         cd artifacts
         zip -r "../$ZIP_NAME" .
 
-    - name: Create Release
-      id: create_release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    # create-release@v1 yerine güncel action
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v2
       with:
         tag_name: ${{ steps.get_version.outputs.VERSION }}
-        release_name: STM32F4 Release ${{ steps.get_version.outputs.VERSION }}
+        name: STM32F4 Release ${{ steps.get_version.outputs.VERSION }}
         body: |
           ## Changes in this Release
 
@@ -305,26 +316,16 @@ jobs:
 
           ### Build Information
           - Commit: ${{ github.sha }}
-          - Build Date: ${{ github.run_number }}
+          - Build Number: ${{ github.run_number }}
 
           ### Artifacts
-          - `*.elf` - Executable files for debugging
-          - `*.hex` - Intel HEX files for programming
-          - `*.bin` - Binary files for direct programming
-          - `*.map` - Memory map files
+          - `*.elf` executables
+          - `*.hex` Intel HEX
+          - `*.bin` binaries
+          - `*.map` memory maps
+        files: |
+          ./stm32f4-firmware-${{ steps.get_version.outputs.VERSION }}.zip
 
-        draft: false
-        prerelease: false
-
-    - name: Upload Release Assets
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./stm32f4-firmware-${{ steps.get_version.outputs.VERSION }}.zip
-        asset_name: stm32f4-firmware-${{ steps.get_version.outputs.VERSION }}.zip
-        asset_content_type: application/zip
 
   # Notification Job
   notify:
