@@ -176,6 +176,36 @@ void UnityAssertEqualString(const char* expected, const char* actual, const char
 }
 
 /**
+  * @brief  Assert equal memory regions; compares exactly length bytes, so binary data may contain zeros
+  * @param  expected: Expected bytes
+  * @param  actual: Actual bytes
+  * @param  length: Number of bytes to compare
+  * @param  msg: Custom message
+  * @param  lineNumber: Line number
+  * @retval None
+  */
+void UnityAssertEqualMemory(const void* expected, const void* actual, const uint32_t length, const char* msg, const uint32_t lineNumber)
+{
+    if (length == 0U || expected == actual) return;
+    if (expected == NULL || actual == NULL || memcmp(expected, actual, length) != 0) {
+        Unity.CurrentTestFailed = 1;
+        UnityPrint(Unity.TestFile);
+        UNITY_OUTPUT_CHAR(':');
+        UnityPrintNumber((long)lineNumber);
+        UNITY_OUTPUT_CHAR(':');
+        UnityPrint(Unity.CurrentTestName);
+        UnityPrint(":FAIL:");
+        if (msg != NULL) {
+            UnityPrint(msg);
+        }
+        UnityPrint(" Memory mismatch over ");
+        UnityPrintNumber((long)length);
+        UnityPrint(" bytes");
+        UNITY_OUTPUT_CHAR('\n');
+    }
+}
+
+/**
   * @brief  Assert floats within tolerance
   * @param  delta: Tolerance
   * @param  expected: Expected value

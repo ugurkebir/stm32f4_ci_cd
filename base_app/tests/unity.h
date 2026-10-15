@@ -65,6 +65,7 @@ void UnityDefaultTestRun(void (*func)(void), const char* funcName, const int fun
 /* Assertion Functions */
 void UnityAssertEqualNumber(const long expected, const long actual, const char* msg, const uint32_t lineNumber, const char* expressions);
 void UnityAssertEqualString(const char* expected, const char* actual, const char* msg, const uint32_t lineNumber);
+void UnityAssertEqualMemory(const void* expected, const void* actual, const uint32_t length, const char* msg, const uint32_t lineNumber);
 void UnityAssertFloatsWithin(const float delta, const float expected, const float actual, const char* msg, const uint32_t lineNumber);
 void UnityAssertBits(const long mask, const long expected, const long actual, const char* msg, const uint32_t lineNumber);
 void UnityFail(const char* msg, const uint32_t lineNumber);
@@ -91,7 +92,7 @@ void UnityIgnore(const char* msg, const uint32_t lineNumber);
 
 /* String Assertions */
 #define TEST_ASSERT_EQUAL_STRING(expected, actual)                              UnityAssertEqualString((const char*)(expected), (const char*)(actual), NULL, __LINE__)
-#define TEST_ASSERT_EQUAL_MEMORY(expected, actual, len)                         UnityAssertEqualString((const char*)(expected), (const char*)(actual), NULL, __LINE__)
+#define TEST_ASSERT_EQUAL_MEMORY(expected, actual, len)                         UnityAssertEqualMemory((const void*)(expected), (const void*)(actual), (uint32_t)(len), NULL, __LINE__)
 
 /* Float Assertions */
 #define TEST_ASSERT_FLOAT_WITHIN(delta, expected, actual)                       UnityAssertFloatsWithin((float)(delta), (float)(expected), (float)(actual), NULL, __LINE__)
